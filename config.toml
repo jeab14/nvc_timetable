@@ -1,0 +1,32 @@
+[theme]
+base = "light"
+primaryColor = "#1D4ED8"
+backgroundColor = "#F5F9FF"
+secondaryBackgroundColor = "#EEF4FF"
+textColor = "#0F172A"
+linkColor = "#1D4ED8"
+borderColor = "#D6E2F5"
+dataframeBorderColor = "#E2EAF7"
+showWidgetBorder = true
+showSidebarBorder = true
+baseRadius = "10px"
+buttonRadius = "10px"
+font = "Sarabun, 'Noto Sans Thai', Tahoma, sans-serif"
+headingFont = "Sarabun, 'Noto Sans Thai', Tahoma, sans-serif"
+baseFontSize = 15
+
+[theme.sidebar]
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F1F6FF"
+textColor = "#1E293B"
+borderColor = "#E2EAF7"
+
+[server]
+maxUploadSize = 20
+headless = true
+
+[browser]
+gatherUsageStats = false
+
+[client]
+toolbarMode = "minimal"
