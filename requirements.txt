@@ -1,0 +1,11 @@
+# ไลบรารีที่ใช้ทั้งหมด (เวอร์ชันที่ทดสอบแล้วกับ Python 3.13)
+streamlit==1.66.1
+pandas==3.0.5
+SQLAlchemy==2.1.6
+psycopg2-binary==2.9.13
+ortools==9.15.6755
+bcrypt==5.0.0
+openpyxl==3.1.5
+xlrd==2.0.2
+fpdf2==2.9.0
+uharfbuzz==0.57.0
