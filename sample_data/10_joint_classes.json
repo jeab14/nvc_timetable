@@ -1,0 +1,12 @@
+[
+  {
+    "course": "20000-1401",
+    "groups": "DBT1-1,DBT1-2",
+    "teacher": "T003"
+  },
+  {
+    "course": "20000-1401",
+    "groups": "ACC1-1,ACC1-2",
+    "teacher": "T003"
+  }
+]
