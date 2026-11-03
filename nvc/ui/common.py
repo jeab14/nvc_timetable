@@ -135,13 +135,64 @@ h3{color:var(--navy)}
   .nvc-kpi{padding:10px 12px}.nvc-kpi .v{font-size:22px}.nvc-kpi .i{width:36px;height:36px;font-size:18px;flex-basis:36px}
   .nvc-steps{grid-template-columns:1fr}
 }
+/* ================= ธีมแบบแถบเมนูด้านบน (navy) ================= */
+[data-testid="stApp"]{background:#f4f7fc !important;}
+[data-testid="stHeader"]{background:linear-gradient(90deg,#0b1f4d 0%,#13307a 55%,#1d4ed8 100%) !important;height:64px !important;
+  box-shadow:0 4px 18px -8px rgba(11,31,77,.6);border-bottom:3px solid #3b82f6}
+[data-testid="stHeader"] [data-testid="stToolbar"]{height:64px;align-items:center}
+[data-testid="stHeaderLogo"]{height:38px !important;max-height:38px !important}
+[data-testid="stTopNav"] button, [data-testid="stTopNav"] a{color:#e2ebff !important;border-radius:10px !important;font-weight:600 !important}
+[data-testid="stTopNav"] button p, [data-testid="stTopNav"] a span, [data-testid="stTopNav"] a p{color:#e2ebff !important;font-size:15px !important;font-weight:600 !important}
+[data-testid="stTopNav"] svg{color:#bcd0ff !important;fill:currentColor}
+[data-testid="stTopNav"] button:hover, [data-testid="stTopNav"] a:hover{background:rgba(255,255,255,.12) !important}
+[data-testid="stTopNav"] a[aria-current="page"]{background:rgba(255,255,255,.16) !important;box-shadow:inset 0 -3px 0 #60a5fa}
+[data-testid="stTopNav"] a[aria-current="page"] span,[data-testid="stTopNav"] a[aria-current="page"] p{color:#ffffff !important}
+[data-testid="stToolbarActions"] button, [data-testid="stMainMenu"] button{color:#e2ebff !important}
+[data-testid="stExpandSidebarButton"], [data-testid="stExpandSidebarButton"] *{color:#ffffff !important}
+[data-testid="stExpandSidebarButton"]{background:rgba(255,255,255,.14) !important;border-radius:10px !important}
+[data-testid="stSidebarNav"] a[aria-current="page"]{background:#e8f0ff !important}
+.block-container{padding-top:5.2rem !important;max-width:1440px}
+/* ---- ส่วนหัวหน้า: การ์ดสีขาวแบบในภาพตัวอย่าง ---- */
+.st-key-nvc_header{background:#ffffff !important;border:1px solid #e3eaf6;border-radius:18px;padding:18px 22px !important;
+  box-shadow:0 2px 10px -4px rgba(15,23,42,.08) !important;margin-bottom:16px}
+.st-key-nvc_header *{color:inherit}
+.nvc-pill{display:inline-block;background:#e8f0ff;color:#1d4ed8 !important;font-weight:700;font-size:12.5px;border-radius:999px;padding:3px 12px;margin-bottom:6px}
+.st-key-nvc_header .nvc-title{color:#0b1f4d !important;font-size:27px}
+.st-key-nvc_header .nvc-title .mi{color:#1d4ed8 !important}
+.st-key-nvc_header .nvc-sub{color:#475569 !important}
+.st-key-nvc_header label p{color:#475569 !important;font-size:12.5px !important}
+.st-key-nvc_header [data-testid="stSelectbox"] [data-baseweb="select"] > div{background:#f8fbff !important;border-color:#d6e2f5 !important}
+.st-key-nvc_header [data-testid="stSelectbox"] [data-baseweb="select"] *{color:#0b1f4d !important;-webkit-text-fill-color:#0b1f4d !important}
+.st-key-nvc_header [data-testid="stSelectbox"] svg{fill:#0b1f4d !important;color:#0b1f4d !important}
+.st-key-nvc_header .nvc-chip{background:#f1f6ff;border:1px solid #d6e2f5;color:#0b1f4d;padding:6px 12px}
+.st-key-nvc_header .nvc-chip .t{color:#0b1f4d !important;font-weight:600}
+.st-key-nvc_header .nvc-chip .t small{color:#64748b !important}
+.nvc-chip .dot{width:9px;height:9px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 3px #dcfce7;flex:0 0 9px}
+.st-key-nvc_logout button{background:linear-gradient(180deg,#ef4444,#dc2626) !important;border:1px solid #dc2626 !important;color:#fff !important}
+.st-key-nvc_logout button p, .st-key-nvc_logout button span{color:#fff !important}
+.st-key-nvc_logout button:hover{background:#b91c1c !important}
+.st-key-nvc_logout button{white-space:nowrap !important;padding:0 10px !important;min-height:40px}
+.st-key-nvc_logout button p{white-space:nowrap !important;font-size:14px !important}
+@media (max-width:1280px){.st-key-nvc_logout button [data-testid="stMarkdownContainer"]{display:none}}
+/* เมนูด้านบนกระชับ ให้แสดงครบไม่ถูกย่อเป็น "more" */
+[data-testid="stTopNav"] button, [data-testid="stTopNav"] a{padding:4px 10px !important;white-space:nowrap !important}
+[data-testid="stTopNav"] button p, [data-testid="stTopNav"] a span, [data-testid="stTopNav"] a p{font-size:14.5px !important;white-space:nowrap !important}
+/* ---- ปุ่มหลักโทนน้ำเงินเข้ม ---- */
+button[kind="primary"], [data-testid="stBaseButton-primary"], [data-testid="stBaseButton-primaryFormSubmit"]{
+  background:linear-gradient(180deg,#1e40af,#13307a) !important;border-color:#13307a !important}
+[data-testid="stExpander"] details, .nvc-card, .nvc-kpi{border-radius:16px !important}
+@media (max-width: 640px){
+  .block-container{padding-top:4.8rem !important}
+  .st-key-nvc_header{padding:14px !important}
+  .st-key-nvc_header .nvc-title{font-size:21px}
+}
 </style>
 """
 
 STATUS_BADGE = {
     "success": "b-ok", "published": "b-ok", "approved": "b-ok", "pending_review": "b-info", "draft": "b-warn",
     "partial": "b-warn", "validation_failed": "b-err", "infeasible": "b-err", "not_scheduled": "b-info",
-    "superseded": "b-info", "running": "b-info",
+    "superseded": "b-info", "running": "b-info", "deleted": "b-err",
 }
 VALIDATION_BADGE = {"pass": ("b-ok", ic("check_circle") + "ผ่านทั้งหมด"), "warn": ("b-warn", ic("warning") + "ผ่าน แต่มีคำเตือน"),
                     "fail": ("b-err", ic("cancel") + "ไม่ผ่าน")}
@@ -170,7 +221,7 @@ def _initials(name: str) -> str:
 
 
 def banner(title: str, subtitle: str = "") -> None:
-    """ส่วนหัวมาตรฐานของทุกหน้า: เส้นทางเมนู ชื่อหน้า คำอธิบาย ภาคเรียน และผู้ใช้"""
+    """ส่วนหัวมาตรฐานของทุกหน้า: ป้ายหมวด ชื่อหน้า คำอธิบาย | ภาคเรียน ผู้ใช้ และปุ่มออกจากระบบ"""
     import html as _h
 
     cur = st.session_state.get("_page") or {}
@@ -179,10 +230,10 @@ def banner(title: str, subtitle: str = "") -> None:
         title = cur["title"]  # ใช้ชื่อเดียวกับเมนู เพื่อให้รู้ว่าอยู่หน้าใด
     ctx = current_ctx()
     with st.container(key="nvc_header"):
-        left, right = st.columns([3, 1.25], vertical_alignment="center")
-        crumb = f"{_h.escape(config.APP_NAME_EN)}" + (f" › {_h.escape(section)}" if section else "") + f" › <b>{_h.escape(title)}</b>"
+        left, right = st.columns([2.6, 1.4], vertical_alignment="center")
         left.markdown(
-            f'<div class="nvc-crumb">{crumb}</div><div class="nvc-title">{ic(icon) if icon else ""}{_h.escape(title)}</div>'
+            (f'<span class="nvc-pill">{_h.escape(section)}</span>' if section else "")
+            + f'<div class="nvc-title">{ic(icon) if icon else ""}{_h.escape(title)}</div>'
             + (f'<div class="nvc-sub">{_h.escape(subtitle)}</div>' if subtitle else ""),
             unsafe_allow_html=True,
         )
@@ -198,8 +249,14 @@ def banner(title: str, subtitle: str = "") -> None:
                     st.session_state["term_id"] = sel
                     st.rerun()
             if ctx:
-                st.markdown(f'<div class="nvc-chip"><span class="a">{_h.escape(_initials(ctx.display_name))}</span>'
-                            f'<span class="t">{_h.escape(ctx.display_name)}<small>{_h.escape(ROLE_LABELS.get(ctx.role, ctx.role))}</small></span></div>', unsafe_allow_html=True)
+                u, o = st.columns([1.35, 1], vertical_alignment="center")
+                u.markdown(f'<div class="nvc-chip"><span class="dot"></span><span class="t">{_h.escape(ctx.display_name)}'
+                           f'<small>{_h.escape(ROLE_LABELS.get(ctx.role, ctx.role))}</small></span></div>', unsafe_allow_html=True)
+                with o.container(key="nvc_logout"):
+                    if st.button("ออกจากระบบ", icon=mi("logout"), key="hdr_logout", width="stretch", help="ออกจากระบบ"):
+                        for k in list(st.session_state.keys()):
+                            del st.session_state[k]
+                        st.rerun()
     show_flash()
 
 
@@ -347,18 +404,10 @@ def term_label(tid: int | None) -> str:
 
 
 def sidebar_user(ctx: Ctx) -> None:
-    import html as _h
-
-    brand = config.ASSETS_DIR / "brand.png"
+    """โลโก้บนแถบเมนูด้านบน (ชื่อเดิมคงไว้เพื่อไม่ให้กระทบส่วนที่เรียกใช้)"""
+    brand = config.ASSETS_DIR / "brand_dark.png"
     if brand.exists():
-        st.logo(str(brand), size="large", icon_image=str(config.ASSETS_DIR / "brand_icon.png"))
-    with st.sidebar:
-        st.markdown(
-            f'<div class="nvc-usercard"><div class="nvc-avatar">{_h.escape(_initials(ctx.display_name))}</div>'
-            f'<div><div class="n">{_h.escape(ctx.display_name)}</div><div class="r">{_h.escape(ROLE_LABELS.get(ctx.role, ctx.role))}</div></div></div>'
-            f'<div class="nvc-college">{_h.escape(config.COLLEGE_NAME)}</div>',
-            unsafe_allow_html=True,
-        )
+        st.logo(str(brand), size="large", icon_image=str(brand))
 
 
 def run_safely(fn, success: str | None = None, spinner: str | None = None) -> bool:
