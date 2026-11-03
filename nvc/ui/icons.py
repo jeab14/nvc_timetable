@@ -11,7 +11,7 @@ PAGE = {
     "dashboard": "space_dashboard", "my": "person", "view": "calendar_month", "compare": "group",
     "history": "history", "requests": "edit_note", "password": "key", "manual": "menu_book", "logout": "logout",
     "import": "upload_file", "data": "database", "readiness": "fact_check", "auto": "auto_mode", "edit": "edit_calendar",
-    "versions": "inventory_2", "users": "manage_accounts", "settings": "settings", "audit": "receipt_long",
+    "versions": "inventory_2", "users": "manage_accounts", "settings": "settings", "audit": "receipt_long", "deleted": "delete_history", "subjects": "difference",
     "setup": "settings", "login": "lock",
 }
 
