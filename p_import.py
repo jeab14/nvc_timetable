@@ -71,6 +71,8 @@ def page() -> None:
         st.error("ไฟล์ต่อไปนี้อ่านไม่ได้")
         df_show(read_errors)
     if not state:
+        if st.session_state.get("imp_error"):
+            st.error("เกิดข้อผิดพลาดระหว่างนำเข้า ข้อมูลเดิมไม่ถูกเปลี่ยนแปลง — รายละเอียด: " + st.session_state["imp_error"], icon=":material/error:")
         if "imp_result" in st.session_state:
             results, committed = st.session_state["imp_result"]
             _show_results(results, committed)
@@ -178,10 +180,16 @@ def page() -> None:
         st.session_state.pop("imp_previewed", None)
         st.session_state.pop("imp_result", None)
         st.session_state.pop("imp_stale", None)
+        st.session_state.pop("imp_error", None)
         st.session_state["imp_nonce"] = st.session_state.get("imp_nonce", 0) + 1
         st.rerun()
     if preview or commit:
+        st.session_state.pop("imp_error", None)
         results = _run(ctx, tid, state, ready, mode, allow_name, skip_err, commit=commit)
+        if results is None:  # เกิดข้อผิดพลาด: เก็บไฟล์ที่เลือกไว้ ให้แก้ไขแล้วลองใหม่ได้
+            st.session_state.pop("imp_result", None)
+            st.session_state.pop("imp_previewed", None)
+            st.rerun()
         st.session_state["imp_result"] = (results, commit)
         st.session_state["imp_previewed"] = not commit
         st.session_state.pop("imp_stale", None)
@@ -190,6 +198,8 @@ def page() -> None:
             st.session_state.pop("imp_previewed", None)
             st.session_state["imp_nonce"] = st.session_state.get("imp_nonce", 0) + 1  # ล้างรายการไฟล์ที่เลือก
         st.rerun()
+    if st.session_state.get("imp_error"):
+        st.error("เกิดข้อผิดพลาดระหว่างนำเข้า ข้อมูลเดิมไม่ถูกเปลี่ยนแปลง — รายละเอียด: " + st.session_state["imp_error"], icon=":material/error:")
     if "imp_result" in st.session_state:
         results, committed = st.session_state["imp_result"]
         _show_results(results, committed)
@@ -239,8 +249,12 @@ def _run(ctx, tid, state, keys, mode, allow_name, skip_err, commit: bool):
             s.rollback()
     except Exception as e:
         s.rollback()
-        st.error(f"เกิดข้อผิดพลาดระหว่างนำเข้า ข้อมูลเดิมไม่ถูกเปลี่ยนแปลง: {e}")
-        results = []
+        import logging
+
+        logging.getLogger("nvc.import").exception("import failed")
+        # เก็บข้อความไว้แสดงหลังโหลดหน้าใหม่ (ไม่ให้หายไปพร้อม st.rerun)
+        st.session_state["imp_error"] = f"{type(e).__name__}: {str(e).splitlines()[0][:400] if str(e) else ''}"
+        results = None
     finally:
         s.close()
     return results
