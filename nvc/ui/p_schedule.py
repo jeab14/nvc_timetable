@@ -75,26 +75,67 @@ def readiness_page() -> None:
             st.rerun()
 
 
+SPECIAL_LABELS = {
+    9: "ข้อ 9 — รายวิชาทฤษฎีใช้ห้องทฤษฎีเท่านั้น และวิชาที่มีชั่วโมงปฏิบัติใช้ห้องทฤษฎีไม่ได้",
+    10: "ข้อ 10 — หัวหน้าแผนก/หัวหน้างานประชุมทุกวันอังคาร 15.00–16.00 น. (คาบ 8)",
+    11: "ข้อ 11 — โฮมรูม (พบครูที่ปรึกษา) อย่างน้อยสัปดาห์ละ 1 ชั่วโมง",
+    12: "ข้อ 12 — รายวิชากิจกรรมจัดทุกวันพุธ 15.00–17.00 น. (คาบ 8–9)",
+    13: "ข้อ 13 — วิชาสามัญ (รหัส 20000/30000) เรียนร่วมกัน 2 กลุ่มในรายวิชาเดียวกัน",
+}
+
+
+def special_conditions_panel(ctx, tid) -> None:
+    """เลือกเงื่อนไขพิเศษ 5 ข้อ (บันทึกเป็นค่าตั้งค่าของภาคเรียน) — แก้ได้เฉพาะผู้ดูแลระบบ"""
+    from .. import settings_service as S
+
+    with tx() as s:
+        rr = bool(S.get(s, "room_type_rule", tid))
+        mt, hr, act = S.get(s, "meeting", tid), S.get(s, "homeroom", tid), S.get(s, "activity", tid)
+        gj = bool(S.get(s, "general_joint", tid))
+    cur = {9: rr, 10: bool(mt.get("enabled")), 11: bool(hr.get("enabled")), 12: bool(act.get("enabled")), 13: gj}
+    can = ctx.role == ADMIN
+    with st.container(border=True):
+        st.markdown("**:material/tune: เงื่อนไขพิเศษที่ใช้ในการจัดตาราง** (กดเลือกเฉพาะข้อที่ต้องการ)")
+        new = {k: st.checkbox(SPECIAL_LABELS[k], v, key=f"auto_sc{k}", disabled=not can) for k, v in cur.items()}
+        if not can:
+            st.caption("เปลี่ยนเงื่อนไขได้เฉพาะผู้ดูแลระบบ")
+        elif new != cur:
+            if st.button("บันทึกเงื่อนไขที่เลือก", icon=":material/save:", key="auto_sc_save"):
+                with tx() as s:
+                    S.put(s, "room_type_rule", new[9], tid)
+                    mt["enabled"], hr["enabled"], act["enabled"] = new[10], new[11], new[12]
+                    S.put(s, "meeting", mt, tid)
+                    S.put(s, "homeroom", hr, tid)
+                    S.put(s, "activity", act, tid)
+                    S.put(s, "general_joint", new[13], tid)
+                    audit.log(s, ctx.username, "edit_special_conditions", "settings", {"term": tid, "on": [k for k, v in new.items() if v]})
+                st.session_state.pop("auto_checks", None)
+                flash("บันทึกเงื่อนไขพิเศษแล้ว — กดตรวจสอบความพร้อมอีกครั้งก่อนจัดตาราง")
+                st.rerun()
+            st.caption("มีการเปลี่ยนแปลงที่ยังไม่บันทึก")
+        st.caption("รายละเอียดเพิ่มเติม (วัน คาบ ห้องประชุม ฯลฯ) ปรับได้ที่ ตั้งค่า → กฎการจัดตาราง")
+
+
 def auto_page() -> None:
     ctx = require_ctx(ADMIN, DEPT_ADMIN)
     tid = require_term()
     banner("จัดตารางอัตโนมัติ", f"ค้นหาตารางที่ผ่านข้อจำกัดบังคับทั้งหมดด้วย OR-Tools CP-SAT · {term_label(tid)}")
-    c1, c2, c3 = st.columns([1.2, 1.2, 1])
+    c1, c2 = st.columns([1, 1])
     with c1:
         dept = _dept_picker(ctx, "auto_dept")
+    name = c2.text_input("ชื่อฉบับตาราง", value="จัดอัตโนมัติ", key="auto_name")
     tts = timetable_options(ctx, tid)
-    with c2:
+    with tx() as s:
+        from .. import settings_service as S
+
+        default_tl = int(S.get(s, "solver_time_limit", tid) or 60)
+    with st.expander("ตัวเลือกเพิ่มเติม (ไม่จำเป็นต้องเปลี่ยน)", icon=":material/settings:"):
+        e1, e2 = st.columns([1.4, 1])
         base_opts = [None] + [t.id for t in tts if t.status not in ("infeasible",)]
-        base = st.selectbox("ใช้ตารางฉบับเดิมเป็นฐาน (ลดการเปลี่ยนแปลง)", base_opts,
+        base = e1.selectbox("ใช้ตารางฉบับเดิมเป็นฐาน (ลดการเปลี่ยนแปลง)", base_opts,
                             format_func=lambda i: "— ไม่ใช้ —" if i is None else tt_label(next(t for t in tts if t.id == i)), key="auto_base",
                             help="ถ้าจัดเฉพาะแผนก ตารางของแผนกอื่นในฉบับฐานจะถูกถือเป็นเวลาที่ไม่ว่างของครูและห้อง")
-    with c3:
-        with tx() as s:
-            from .. import settings_service as S
-
-            default_tl = int(S.get(s, "solver_time_limit", tid) or 60)
-        tl = st.number_input("เวลาประมวลผลสูงสุด (วินาที)", 10, 900, default_tl, step=10, key="auto_tl")
-    name = st.text_input("ชื่อฉบับตาราง", value="จัดอัตโนมัติ", key="auto_name")
+        tl = e2.number_input("เวลาประมวลผลสูงสุด (วินาที)", 10, 900, default_tl, step=10, key="auto_tl")
     if dept is not None and base is None:
         st.warning("การจัดเฉพาะแผนกโดยไม่มีฉบับฐาน จะไม่ทราบเวลาที่ครู/ห้องถูกใช้โดยแผนกอื่น — แนะนำให้เลือกตารางฉบับล่าสุดเป็นฐาน")
     b1, b2 = st.columns(2)
@@ -277,13 +318,88 @@ def versions_page() -> None:
         if run_safely(go, "สร้างฉบับใหม่แล้ว — แก้ไขได้ที่เมนู “จัด/แก้ไขตาราง”"):
             st.session_state["manual_tt"] = out["id"]
             st.rerun()
-    if ctx.role == ADMIN and status not in ("published", "superseded", "approved"):
-        with st.expander("ลบฉบับร่างนี้"):
-            if st.checkbox("ยืนยันลบฉบับร่าง (ไม่สามารถกู้คืนได้)", key=f"delok_{sel}") and st.button("ลบฉบับร่าง", key=f"del_{sel}"):
-                if run_safely(lambda: _do(T.delete_draft, ctx, sel), "ลบแล้ว"):
-                    st.rerun()
+    if ctx.role == ADMIN and status != "running":
+        with st.expander("ลบตารางฉบับนี้", icon=":material/delete:"):
+            st.caption("ตารางที่ลบจะถูกย้ายไปเก็บในเมนู “ประวัติการลบตาราง” — เรียกกลับมาดูหรือกู้คืนได้ภายหลัง")
+            if status == "published":
+                st.warning("ฉบับนี้คือตารางที่เผยแพร่และมีผลใช้จริง หากลบ ครูและนักเรียนจะไม่เห็นตารางจนกว่าจะเผยแพร่ฉบับใหม่หรือกู้คืนฉบับนี้")
+            reason = st.text_input("เหตุผลในการลบ (ไม่บังคับ)", key=f"delreason_{sel}")
+            ok = st.checkbox("ยืนยันลบตารางฉบับนี้", key=f"delok_{sel}")
+            with st.container(key=f"nvc_danger_{sel}"):
+                if st.button("ลบตาราง", key=f"del_{sel}", icon=":material/delete:", disabled=not ok):
+                    def go():
+                        with tx() as s:
+                            T.delete_timetable(s, ctx, sel, reason)
+
+                    if run_safely(go, "ลบตารางแล้ว — ดูหรือกู้คืนได้ที่เมนู “ประวัติการลบตาราง”"):
+                        st.session_state.pop("ver_sel", None)
+                        st.rerun()
     st.subheader("รายงานผลการตรวจสอบ")
     if vrep:
         validation_report_view(vrep)
     else:
         st.info("ยังไม่ได้ตรวจสอบฉบับนี้ — กด “ตรวจสอบตาราง”")
+
+
+def deleted_page() -> None:
+    """ประวัติการลบตาราง (ผู้ดูแลระบบ): เรียกดูตารางที่ถูกลบ และกู้คืน"""
+    from ..views import VIEW_KINDS, allowed_kinds
+    from .common import term_options
+    from .p_view import render_view
+
+    ctx = require_ctx(ADMIN)
+    banner("ประวัติการลบตาราง", "ตารางที่ถูกลบทั้งหมดถูกเก็บไว้ที่นี่ — เลือกเพื่อเรียกดู พิมพ์ หรือกู้คืน")
+    terms = term_options()
+    tmap = {t[0]: t[1] for t in terms}
+    cur = st.session_state.get("term_id")
+    ids_t = [None] + [t[0] for t in terms]
+    tsel = st.selectbox("ภาคเรียน", ids_t, index=ids_t.index(cur) if cur in ids_t else 0,
+                        format_func=lambda i: "ทุกภาคเรียน" if i is None else tmap.get(i, str(i)), key="del_term")
+    with tx() as s:
+        rows = T.list_deleted(s, ctx, tsel)
+        items = [{"rid": d.id, "tt": t.id, "term": d.term_id, "version": t.version, "name": t.name or "", "prev": d.prev_status,
+                  "reason": d.reason or "-", "by": d.deleted_by or "-", "at": d.deleted_at, "restored": d.restored_at,
+                  "rby": d.restored_by, "rstatus": d.restored_status} for d, t in rows]
+    if not items:
+        st.info("ยังไม่มีตารางที่ถูกลบ" + ("" if tsel is None else "ในภาคเรียนนี้"))
+        return
+    df_show([{"ภาคเรียน": tmap.get(i["term"], ""), "ฉบับที่": i["version"], "ชื่อ": i["name"],
+              "สถานะก่อนลบ": T.STATUS_LABEL.get(i["prev"], i["prev"]), "ลบโดย": i["by"],
+              "ลบเมื่อ": i["at"].strftime("%d/%m/%Y %H:%M"), "เหตุผล": i["reason"],
+              "สถานะปัจจุบัน": (f"กู้คืนแล้ว ({i['restored'].strftime('%d/%m/%Y %H:%M')} โดย {i['rby']})" if i["restored"] else "ถูกลบ")}
+             for i in items])
+    pending = [i for i in items if not i["restored"]]
+    if not pending:
+        st.success("ตารางทุกฉบับในรายการนี้ถูกกู้คืนแล้ว")
+        return
+    rid = st.selectbox("เลือกตารางที่ถูกลบเพื่อเรียกดู", [i["rid"] for i in pending],
+                       format_func=lambda r: (lambda i: f"{tmap.get(i['term'], '')} · ฉบับที่ {i['version']} — {i['name']} (ลบเมื่อ {i['at'].strftime('%d/%m/%Y %H:%M')})")(next(x for x in pending if x["rid"] == r)),
+                       key="del_sel")
+    it = next(x for x in pending if x["rid"] == rid)
+    with st.container(border=True):
+        c1, c2 = st.columns([3, 1.2], vertical_alignment="center")
+        c1.markdown(f"**ฉบับที่ {it['version']} — {it['name']}** · สถานะก่อนลบ: {T.STATUS_LABEL.get(it['prev'], it['prev'])}")
+        conf = c2.checkbox("ยืนยันกู้คืน", key=f"rest_ok_{rid}")
+        if c2.button("กู้คืนตารางนี้", icon=":material/restore:", type="primary", disabled=not conf, width="stretch", key=f"rest_{rid}"):
+            out = {}
+
+            def go():
+                with tx() as s:
+                    out["st"] = T.restore_timetable(s, ctx, rid).status
+
+            if run_safely(go, "กู้คืนตารางแล้ว"):
+                if out.get("st") == "superseded" and it["prev"] == "published":
+                    flash("มีตารางฉบับอื่นเผยแพร่อยู่แล้ว จึงกู้คืนฉบับนี้เป็น “ถูกแทนที่ด้วยตารางฉบับใหม่” — หากต้องการใช้ฉบับนี้ ให้สร้างฉบับใหม่จากฉบับนี้แล้วอนุมัติ/เผยแพร่", "info")
+                st.rerun()
+    kinds = allowed_kinds(ctx)
+    k1, k2 = st.columns(2)
+    kind = k1.selectbox("เลือกรูปแบบแสดงตาราง", kinds, format_func=VIEW_KINDS.get, key="del_kind")
+    key = None
+    if kind in ("group", "teacher", "student", "room", "course", "department"):
+        with tx() as s:
+            opts = options(s, ctx, it["term"], kind)
+        if not opts:
+            k2.info("ไม่มีข้อมูลในประเภทนี้")
+            return
+        key = k2.selectbox("เลือก", [o[0] for o in opts], format_func=lambda i: dict(opts)[i], key=f"del_key_{kind}")
+    render_view(ctx, it["tt"], kind, key, key_prefix=f"del{rid}")
