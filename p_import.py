@@ -36,7 +36,7 @@ def page() -> None:
             "1. เลือกไฟล์ทั้งหมดพร้อมกัน (ไม่ต้องเรียงลำดับ) ระบบจะอ่านทุกแผ่นงานและคาดการณ์ว่าเป็นข้อมูลประเภทใด\n"
             "2. ตรวจสอบ/แก้ไขการจับคู่คอลัมน์ — รายการที่ระบบไม่มั่นใจจะแสดง “ต้องยืนยัน” ในช่องความมั่นใจ และต้องติ๊ก “ยืนยัน” ก่อน\n"
             "3. กด **ตรวจสอบผลกระทบ** เพื่อดูว่าจะเพิ่ม/อัปเดต/ข้ามกี่รายการ และมีข้อผิดพลาดแถวใด (ยังไม่บันทึก)\n"
-            "4. กด **ยืนยันการนำเข้า** — ระบบนำเข้าตามลำดับความสัมพันธ์ของข้อมูลให้อัตโนมัติ\n\n"
+            "4. กด **ยืนยันการนำเข้า** (กดได้ทันทีโดยไม่ต้องตรวจสอบก่อน แต่แนะนำให้ตรวจสอบก่อน) — ระบบนำเข้าตามลำดับความสัมพันธ์ของข้อมูลให้อัตโนมัติ\n\n"
             "ไฟล์ PDF/Word ไม่ใช่ตารางข้อมูลโดยตรง ต้องแปลงเป็น Excel หรือ CSV ก่อน"
         )
         if (config.BASE_DIR / "sample_data").exists():
@@ -166,17 +166,13 @@ def page() -> None:
             blockers.append(f"{v['sheet'].filename} {v['sheet'].sheet or ''}: มีการจับคู่ที่ต้องยืนยัน")
     for b in blockers:
         st.warning(b)
-    if not blockers and ready and not st.session_state.get("imp_previewed"):
-        if st.session_state.get("imp_stale"):
-            st.info("มีการเปลี่ยนตัวเลือกหรือการจับคู่คอลัมน์หลังจากตรวจสอบ — กด “ตรวจสอบผลกระทบ” อีกครั้ง แล้วจึงกด “ยืนยันการนำเข้า”",
-                    icon=":material/refresh:")
-        else:
-            st.info("ขั้นตอน: ตั้งค่าตัวเลือกให้เรียบร้อยก่อน แล้วกด “ตรวจสอบผลกระทบ” จากนั้นปุ่ม “ยืนยันการนำเข้า” จึงจะกดได้ "
-                    "(ถ้าเปลี่ยนตัวเลือกหลังตรวจสอบ ต้องกดตรวจสอบใหม่)", icon=":material/info:")
+    if not blockers and ready and st.session_state.get("imp_stale") and not st.session_state.get("imp_previewed"):
+        st.info("มีการเปลี่ยนตัวเลือกหรือการจับคู่คอลัมน์หลังจากตรวจสอบ — ผลตรวจเดิมถูกล้างแล้ว (กดตรวจสอบใหม่ได้ หรือกดยืนยันการนำเข้าได้เลย)",
+                icon=":material/refresh:")
     b1, b2, b3 = st.columns([1, 1, 1])
     preview = b1.button("ตรวจสอบผลกระทบ (ยังไม่บันทึก)", icon=":material/search:", disabled=bool(blockers) or not ready, width="stretch")
-    commit = b2.button("ยืนยันการนำเข้า", icon=":material/check_circle:", type="primary", disabled=bool(blockers) or not ready or not st.session_state.get("imp_previewed"), width="stretch",
-                       help="ต้องกดตรวจสอบผลกระทบก่อน")
+    commit = b2.button("ยืนยันการนำเข้า", icon=":material/check_circle:", type="primary", disabled=bool(blockers) or not ready, width="stretch",
+                       help="บันทึกข้อมูลทันที — ระบบตรวจทุกแถวก่อนบันทึก ไฟล์ที่มีข้อผิดพลาดจะไม่ถูกนำเข้า (เว้นแต่เลือกข้ามแถวที่ผิดพลาด)")
     if b3.button("ยกเลิกการนำเข้า", icon=":material/close:", width="stretch"):
         st.session_state.pop(K, None)
         st.session_state.pop("imp_previewed", None)
