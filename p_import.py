@@ -150,8 +150,13 @@ def page() -> None:
     ready = [k for k, v in state.items() if v["include"]]
     sig = str([(k, state[k]["entity"], sorted(_effective_map(state[k]).items())) for k in ready]) + str((mode, allow_name, skip_err))
     if st.session_state.get("imp_sig") != sig:
+        had_preview = st.session_state.get("imp_previewed")
         st.session_state["imp_sig"] = sig
         st.session_state.pop("imp_previewed", None)
+        if had_preview:
+            # ตัวเลือก/การจับคู่เปลี่ยนหลังตรวจสอบ: ผลตรวจเดิมใช้ไม่ได้แล้ว ต้องตรวจใหม่
+            st.session_state.pop("imp_result", None)
+            st.session_state["imp_stale"] = True
     blockers = []
     for k in ready:
         v = state[k]
@@ -161,6 +166,13 @@ def page() -> None:
             blockers.append(f"{v['sheet'].filename} {v['sheet'].sheet or ''}: มีการจับคู่ที่ต้องยืนยัน")
     for b in blockers:
         st.warning(b)
+    if not blockers and ready and not st.session_state.get("imp_previewed"):
+        if st.session_state.get("imp_stale"):
+            st.info("มีการเปลี่ยนตัวเลือกหรือการจับคู่คอลัมน์หลังจากตรวจสอบ — กด “ตรวจสอบผลกระทบ” อีกครั้ง แล้วจึงกด “ยืนยันการนำเข้า”",
+                    icon=":material/refresh:")
+        else:
+            st.info("ขั้นตอน: ตั้งค่าตัวเลือกให้เรียบร้อยก่อน แล้วกด “ตรวจสอบผลกระทบ” จากนั้นปุ่ม “ยืนยันการนำเข้า” จึงจะกดได้ "
+                    "(ถ้าเปลี่ยนตัวเลือกหลังตรวจสอบ ต้องกดตรวจสอบใหม่)", icon=":material/info:")
     b1, b2, b3 = st.columns([1, 1, 1])
     preview = b1.button("ตรวจสอบผลกระทบ (ยังไม่บันทึก)", icon=":material/search:", disabled=bool(blockers) or not ready, width="stretch")
     commit = b2.button("ยืนยันการนำเข้า", icon=":material/check_circle:", type="primary", disabled=bool(blockers) or not ready or not st.session_state.get("imp_previewed"), width="stretch",
@@ -169,12 +181,14 @@ def page() -> None:
         st.session_state.pop(K, None)
         st.session_state.pop("imp_previewed", None)
         st.session_state.pop("imp_result", None)
+        st.session_state.pop("imp_stale", None)
         st.session_state["imp_nonce"] = st.session_state.get("imp_nonce", 0) + 1
         st.rerun()
     if preview or commit:
         results = _run(ctx, tid, state, ready, mode, allow_name, skip_err, commit=commit)
         st.session_state["imp_result"] = (results, commit)
         st.session_state["imp_previewed"] = not commit
+        st.session_state.pop("imp_stale", None)
         if commit:
             st.session_state.pop(K, None)
             st.session_state.pop("imp_previewed", None)
