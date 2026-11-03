@@ -44,7 +44,7 @@ def _personal(ctx, tid):
         page_link("my", "ตารางสอน/ตารางเรียนของฉัน", "person")
         page_link("view", "ดูตาราง ส่งออก และพิมพ์", "calendar_month")
         if ctx.role == TEACHER:
-            page_link("compare", "เปรียบเทียบเวลาว่างกับครูท่านอื่น", "group")
+            page_link("subjects", "เปรียบเทียบรายวิชา", "difference")
             page_link("requests", "เสนอการเปลี่ยนแปลงตาราง", "edit_note")
         page_link("history", "ดูตารางย้อนหลัง", "history")
     if ctx.role == STUDENT:
@@ -69,7 +69,7 @@ def _staff(ctx, tid):
             sq = sq.join(ClassGroup, ClassGroup.id == StudentMembership.group_id).where(ClassGroup.department_id.in_(scope))
         n_t, n_g, n_c, n_s = s.scalar(tq), s.scalar(gq), s.scalar(cq), s.scalar(sq)
         n_r = s.scalar(select(func.count(Room.id)).where(Room.active.is_(True)))
-        latest = s.scalars(select(Timetable).where(Timetable.term_id == tid).order_by(Timetable.version.desc())).first()
+        latest = s.scalars(select(Timetable).where(Timetable.term_id == tid, Timetable.status != "deleted").order_by(Timetable.version.desc())).first()
         pub = latest_published(s, tid)
         pub_v = pub.version if pub else None
         pending = s.scalar(select(func.count(ChangeRequest.id)).where(ChangeRequest.status == "pending"))
