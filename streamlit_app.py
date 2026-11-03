@@ -46,7 +46,9 @@ def main() -> None:
 
     home = P(p_dashboard.page, title="แดชบอร์ด", icon=mi(PAGE["dashboard"]), url_path="dashboard", default=True)
     mine = P(p_view.my_page, title="ตารางของฉัน", icon=mi(PAGE["my"]), url_path="my")
-    view = P(p_view.view_page, title="ดูตาราง / ส่งออก / พิมพ์", icon=mi(PAGE["view"]), url_path="view")
+    view = P(p_view.view_page, title="ตารางเรียน / พิมพ์ตาราง", icon=mi(PAGE["view"]), url_path="view")
+    subjects = P(p_view.subjects_page, title="เปรียบเทียบรายวิชา", icon=mi(PAGE["subjects"]), url_path="subjects")
+    deleted = P(p_schedule.deleted_page, title="ประวัติการลบตาราง", icon=mi(PAGE["deleted"]), url_path="deleted")
     compare = P(p_view.compare_page, title="เปรียบเทียบตารางครู", icon=mi(PAGE["compare"]), url_path="compare")
     history = P(p_view.history_page, title="ประวัติตาราง", icon=mi(PAGE["history"]), url_path="history")
     requests = P(p_admin.requests_page, title="คำขอเปลี่ยนแปลงตาราง", icon=mi(PAGE["requests"]), url_path="requests")
@@ -64,33 +66,32 @@ def main() -> None:
     sett = P(p_admin.settings_page, title="ตั้งค่า", icon=mi(PAGE["settings"]), url_path="settings")
     aud = P(p_admin.audit_page, title="ประวัติการดำเนินการ", icon=mi(PAGE["audit"]), url_path="audit")
 
+    # เมนูด้านบน: หน้าที่ใช้บ่อยเป็นลิงก์ตรง ที่เหลือจัดกลุ่มเป็นเมนูย่อย (ปุ่มออกจากระบบอยู่มุมขวาของส่วนหัวทุกหน้า)
     if ctx.role == ADMIN:
         pages = {
-            "ภาพรวม": [home, mine],
+            "": [home, view],
+            "จัดตาราง": [auto, man, vers, requests, deleted],
             "ข้อมูล": [imp, data, ready],
-            "จัดตาราง": [auto, man, vers, requests],
-            "ตาราง": [view, compare, history],
-            "ผู้ดูแลระบบ": [users, sett, aud],
-            "บัญชี": [manual, pw, out],
+            "ดูตาราง": [mine, history],
+            "ระบบ": [users, sett, aud, manual, pw],
         }
     elif ctx.role == DEPT_ADMIN:
         pages = {
-            "ภาพรวม": [home, mine],
-            "จัดตาราง (แผนกของฉัน)": [ready, auto, man, vers, requests],
-            "ตาราง": [view, compare, history],
-            "บัญชี": [manual, pw, out],
+            "": [home, view],
+            "จัดตาราง": [ready, auto, man, vers, requests],
+            "ดูตาราง": [mine, compare, history],
+            "บัญชี": [manual, pw],
         }
     elif ctx.role == TEACHER:
-        tpages = [mine, view, compare, history, requests]
-        if ctx.can_edit_timetable:
-            tpages.insert(2, man)
-        pages = {"ตาราง": tpages, "บัญชี": [home, manual, pw, out]}
+        more = [subjects, history, requests] + ([man] if ctx.can_edit_timetable else [])
+        pages = {"": [home, mine, view], "เพิ่มเติม": more, "บัญชี": [manual, pw]}
     else:  # STUDENT
-        pages = {"ตารางเรียน": [mine, view, history], "บัญชี": [manual, pw, out]}
+        pages = {"": [mine, view, history], "บัญชี": [manual, pw]}
+    _ = out  # หน้าออกจากระบบยังใช้ได้ผ่าน URL /logout
     # เก็บรายการหน้า (สำหรับลิงก์ทางลัด) และหน้าปัจจุบัน (สำหรับส่วนหัว/เส้นทางเมนู)
     allowed = {id(pg) for sec in pages.values() for pg in sec}
     st.session_state["_pages"] = {k: v for k, v in registry.items() if id(v) in allowed}
-    current = st.navigation(pages, expanded=True)
+    current = st.navigation(pages, position="top")
     sec_name = next((name for name, items in pages.items() if any(x.title == current.title for x in items)), "")
     st.session_state["_page"] = {"section": sec_name, "title": current.title, "icon": (current.icon or "").replace(":material/", "").strip(":")}
     current.run()
