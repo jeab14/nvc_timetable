@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from . import settings_service as S
 from .models import ClassGroup, Course, Department, Enrollment, Room, Student, StudentMembership, Teacher, Term, Timetable
-from .permissions import DEPT_ADMIN, STUDENT, TEACHER, Ctx, PermissionDenied
+from .permissions import ADMIN, DEPT_ADMIN, STUDENT, TEACHER, Ctx, PermissionDenied
 from .timetable_service import entries_of, entry_dict
 
 VIEW_KINDS = {
@@ -194,6 +194,8 @@ def get_view(s: Session, ctx: Ctx, tt: Timetable, kind: str, key: int | None = N
         raise PermissionDenied("ไม่มีสิทธิ์ดูตารางประเภทนี้")
     if ctx.role in (TEACHER, STUDENT) and tt.status not in ("published", "superseded"):
         raise PermissionDenied("ตารางฉบับนี้ยังไม่เผยแพร่")
+    if tt.status == "deleted" and ctx.role != ADMIN:
+        raise PermissionDenied("ตารางฉบับนี้ถูกลบแล้ว")
     term = s.get(Term, tt.term_id)
     ts = S.time_structure(s, tt.term_id)
     allent = _enrich(s, [entry_dict(e) for e in entries_of(s, tt.id)])
@@ -276,3 +278,56 @@ def get_view(s: Session, ctx: Ctx, tt: Timetable, kind: str, key: int | None = N
         raise ValueError("ประเภทตารางไม่ถูกต้อง")
     conf = detect_conflicts(ents, kind) if kind in ("group", "teacher", "student", "room") else set()
     return ViewData(kind, title, hdr, ents, term_label, tlabel, CELL_FIELDS[kind], ts, [], conf)
+
+
+# ------------------------------------------------------------------ เปรียบเทียบรายวิชา (สำหรับครู)
+SUBJECT_CATS = {"general": "วิชาสามัญ", "major": "วิชาเอก/วิชาชีพ", "activity": "กิจกรรม"}
+_PART_TH = {"theory": "ทฤษฎี", "practice": "ปฏิบัติ", "all": "", None: ""}
+
+
+def subject_catalog(s: Session, ctx: Ctx, tt: Timetable) -> dict:
+    """รวบรวมรายวิชาทั้งหมดที่อยู่ในตารางฉบับหนึ่ง จัดหมวด วิชาสามัญ / วิชาเอก / กิจกรรม
+    คืนค่า dict: key วิชา -> ข้อมูลวิชา (ครูผู้สอน กลุ่ม ห้อง คาบต่อสัปดาห์ และช่วงเวลาในตาราง)"""
+    if ctx.role in (TEACHER, STUDENT) and tt.status not in ("published", "superseded"):
+        raise PermissionDenied("ตารางฉบับนี้ยังไม่เผยแพร่")
+    if tt.status == "deleted" and ctx.role != ADMIN:
+        raise PermissionDenied("ตารางฉบับนี้ถูกลบแล้ว")
+    prefixes = S.get(s, "general_prefixes", tt.term_id) or []
+    courses = {c.id: c for c in s.scalars(select(Course).where(Course.term_id == tt.term_id)).all()}
+    ents = _scope_filter(s, ctx, tt.term_id, [entry_dict(e) for e in entries_of(s, tt.id)])
+    out: dict = {}
+    for e in ents:
+        et = e["entry_type"]
+        if et == "meeting":
+            continue
+        c = courses.get(e["course_id"]) if e["course_id"] else None
+        if et in ("activity", "homeroom") or (c is not None and c.course_type == "activity"):
+            cat = "activity"
+        elif c is not None and S.is_general_course(c.code, prefixes, c.is_general):
+            cat = "general"
+        elif c is None and et == "class" and S.is_general_course(e.get("course_code") or "", prefixes):
+            cat = "general"
+        else:
+            cat = "major"
+        if c is not None:
+            k = f"c{c.id}"
+            code, name = c.code, c.name
+        else:
+            name = e.get("course_name") or {"homeroom": "โฮมรูม (พบครูที่ปรึกษา)", "activity": "กิจกรรม"}.get(et, "ไม่ระบุวิชา")
+            code = e.get("course_code") or ""
+            k = f"x{et}:{code}:{name}"
+        d = out.setdefault(k, {"key": k, "code": code, "name": name, "cat": cat,
+                               "ctype": {"theory": "ทฤษฎี", "practice": "ปฏิบัติ", "mixed": "ทฤษฎี+ปฏิบัติ", "activity": "กิจกรรม"}.get(c.course_type, "-") if c else "-",
+                               "credits": c.credits if c else None,
+                               "hours": (f"{c.theory_hours or 0:g}-{c.practice_hours or 0:g}" if c and (c.theory_hours or c.practice_hours) else "-"),
+                               "teachers": {}, "groups": set(), "rooms": set(), "periods": 0, "slots": []})
+        for tid_, nm in zip(e["teacher_ids"], e.get("teacher_names") or []):
+            d["teachers"][tid_] = nm
+        d["groups"].update(e.get("group_codes") or [])
+        if e.get("room_label"):
+            d["rooms"].add(e["room_label"])
+        d["periods"] += e["end_period"] - e["start_period"] + 1
+        d["slots"].append({"day": e["day"], "start": e["start_period"], "end": e["end_period"], "time": f"{e['start_time']}–{e['end_time']}",
+                           "teacher_ids": list(e["teacher_ids"]), "group_codes": list(e.get("group_codes") or []), "room": e.get("room_label") or "",
+                           "part": _PART_TH.get(e.get("part"), "")})
+    return out

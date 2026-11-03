@@ -155,6 +155,46 @@ table.nvc td.ent{padding:3px}
 .nvc-legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
 .nvc-sign{display:flex;justify-content:space-around;margin-top:28px;font-size:13px}
 .nvc-sign div{text-align:center}
+/* ===== รูปแบบตารางแบบเอกสารวิทยาลัย (โทนน้ำเงินเข้ม) ===== */
+.nvc-doc{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:2px solid #13307a;padding:6px 2px 14px;margin-bottom:14px}
+.nvc-doc .pill{display:inline-block;background:#e8f0ff;color:#1d4ed8;font-weight:700;font-size:12.5px;border-radius:999px;padding:3px 12px;margin-bottom:6px}
+.nvc-doc h2{margin:0;color:#0b1f4d;font-size:25px;line-height:1.3}
+.nvc-doc .sub{color:#475569;font-size:14.5px;margin-top:4px}
+.nvc-doc .info{border:1px solid #e3eaf6;background:#f8fbff;border-radius:14px;padding:10px 16px;font-size:14px;line-height:1.75;min-width:260px}
+.nvc-doc .info b{color:#0b1f4d}
+.nvc-bar2{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#f8fbff;border:1px solid #e3eaf6;border-radius:14px;padding:10px 14px;margin:0 0 12px}
+.nvc-bar2 .lbl{display:flex;align-items:center;gap:8px;font-weight:700;color:#0b1f4d;font-size:15px}
+.nvc-bar2 .lbl svg{color:#1d4ed8}
+.nvc-print{background:#15803d;color:#fff;border:0;border-radius:10px;padding:10px 18px;font-size:15px;font-weight:700;cursor:pointer;
+  font-family:inherit;display:inline-flex;align-items:center;gap:8px;box-shadow:0 6px 14px -8px rgba(21,128,61,.9)}
+.nvc-print:hover{background:#166534}
+.nvc-scroll{border:1px solid #13307a !important;border-radius:6px !important}
+table.nvc thead th{background:#13307a !important;font-size:14px !important;padding:9px 4px !important;border-right:1px solid #2a4a9a !important}
+table.nvc thead th:first-child{border-top-left-radius:0 !important}
+table.nvc thead th .t{color:#c7d6ff !important;font-size:11.5px !important}
+table.nvc th.brkhead{background:#0b1f4d !important;color:#7cc4ff !important;width:auto !important}
+table.nvc th.brkhead .t{color:#9fc3ff !important}
+table.nvc th.prehead{background:#1e3a8a !important}
+table.nvc td.day{background:#f4f7fc !important;color:#0b1f4d !important;font-size:15px !important;width:96px !important;box-shadow:inset -1px 0 0 #dbe5f5 !important}
+table.nvc tbody tr td:not(.day):not(.brk):not(.ent){background:#fff !important}
+table.nvc td.brk{background:#f1f5f9 !important;color:#64748b !important;font-weight:500 !important;font-size:13px !important}
+table.nvc td.ent{padding:8px 8px !important;vertical-align:top !important;background:#fff !important}
+.cell{background:transparent !important;border-left:0 !important;padding:0 !important;min-height:64px;gap:3px}
+.cell .nm{font-size:14px !important;color:#0b1f4d !important}
+.cell .code{border:0 !important;background:transparent !important;color:#64748b !important;font-weight:600 !important;padding:0 !important;font-size:11.5px !important}
+.cell .rm{font-size:13px;color:#64748b}.cell .rm b{color:#1d4ed8;font-weight:700}
+.cell .tc{font-size:13px;color:#64748b}
+.cell .gp{align-self:flex-start;background:#e8f0ff;color:#1d4ed8;font-weight:600;font-size:12px;border-radius:6px;padding:1px 8px;margin-top:2px}
+.cell.homeroom .nm{color:#15803d !important}.cell.activity .nm{color:#b45309 !important}.cell.meeting .nm{color:#6d28d9 !important}
+.cell.conflict{background:#fee2e2 !important;box-shadow:inset 0 0 0 2px #dc2626;border-radius:8px;padding:4px !important}
+.nvc-legend{margin:0 2px 10px !important}
+@media (max-width: 700px){.nvc-doc{flex-direction:column}.nvc-doc .info{min-width:0;width:100%;box-sizing:border-box}.nvc-bar2{flex-direction:column;align-items:stretch}}
+@media print{
+  .nvc-doc{border-bottom:1.5px solid #13307a}
+  .nvc-doc h2{font-size:18px}
+  table.nvc td.ent{padding:3px 4px !important}
+  .cell .nm{font-size:11px !important}.cell .rm,.cell .tc{font-size:10px}.cell .gp{font-size:9.5px}
+}
 @media print{
   @page{size:A4 landscape;margin:8mm}
   .noprint{display:none!important}
@@ -180,31 +220,31 @@ def _tone(e: dict) -> str:
 
 
 def _cell_html(e: dict, fields: list[str], conflict: bool) -> str:
-    """ช่องตาราง: รหัสวิชา ชื่อวิชา ห้อง ครู กลุ่ม และช่วงเวลา (อ่านง่ายบนหน้าเว็บ)"""
+    """ช่องตาราง: รหัสวิชา ชื่อวิชา ห้อง ครู และกลุ่มเรียน (เวลาอยู่ที่หัวคอลัมน์)"""
     esc = html.escape
     t = e["entry_type"]
     parts = []
     if t in ("class", "activity") and "code" in fields and e.get("course_code"):
         parts.append(f'<span class="code">{esc(e["course_code"])}</span>')
-    name = e.get("course_name") if t in ("class", "activity") else {"homeroom": "โฮมรูม", "meeting": e.get("course_name") or "ประชุม"}.get(t, "")
+    name = e.get("course_name") if t in ("class", "activity") else {"homeroom": "คาบโฮมรูม (พบครูที่ปรึกษา)", "meeting": e.get("course_name") or "ประชุม"}.get(t, "")
+    if t == "class" and e.get("part") in ("theory", "practice"):
+        name = f'{name} ({"ทฤษฎี" if e["part"] == "theory" else "ปฏิบัติ"})'
     if name and ("name" in fields or t != "class"):
         parts.append(f'<div class="nm">{esc(name)}</div>')
     if "room" in fields and e.get("room_label"):
-        parts.append(f'<div class="ln">{_svg("location")} ห้อง {esc(e["room_label"])}</div>')
+        parts.append(f'<div class="rm">ห้อง: <b>{esc(e["room_label"])}</b></div>')
     if "teacher" in fields and e.get("teacher_names"):
         names = e["teacher_names"]
         txt = f"ผู้เข้าร่วม {len(names)} คน" if t == "meeting" and len(names) > 3 else ", ".join(short_teacher(n) for n in names)
-        parts.append(f'<div class="ln">{_svg("person")} {esc(txt)}</div>')
+        parts.append(f'<div class="tc">{esc(txt)}</div>')
     if "group" in fields and e.get("group_codes"):
-        parts.append(f'<div class="ln">{_svg("group")} {esc(", ".join(e["group_codes"]))}</div>')
-    span = f'คาบ {e["start_period"]}' + (f'–{e["end_period"]}' if e["end_period"] != e["start_period"] else "")
-    parts.append(f'<div class="tm">{_svg("schedule", 12)} {esc(e["start_time"].replace(":", "."))}–{esc(e["end_time"].replace(":", "."))} · {span}</div>')
+        parts.append(f'<span class="gp">{esc(", ".join(e["group_codes"]))}</span>')
     if conflict:
         parts.append(f'<div class="flag">{_svg("warning")} ชนกัน</div>')
     return f'<div class="cell {_tone(e)}{" conflict" if conflict else ""}">{"".join(parts)}</div>'
 
 
-LEGEND = ('<div class="nvc-legend noprint"><span><i style="background:#2563eb"></i>รายวิชา (สีต่างกันตามรหัสวิชา)</span>'
+LEGEND = ('<div class="nvc-legend noprint"><span><i style="background:#2563eb"></i>รายวิชา</span>'
           '<span><i style="background:#16a34a"></i>โฮมรูม</span><span><i style="background:#d97706"></i>กิจกรรม</span>'
           '<span><i style="background:#7c3aed"></i>ประชุม</span><span><i style="background:#cbd5e1"></i>คาบพัก</span>'
           '<span><i style="background:#dc2626"></i>รายการที่ชนกัน</span></div>')
@@ -213,10 +253,10 @@ LEGEND = ('<div class="nvc-legend noprint"><span><i style="background:#2563eb"><
 def grid_html(vd: ViewData, cell_fields: list[str] | None = None) -> str:
     fields = cell_fields or vd.fields
     cols, rows = layout(vd.ts, vd.entries)
-    out = [LEGEND, '<div class="nvc-scroll"><table class="nvc"><thead><tr><th style="width:64px">วัน / คาบ</th>']
+    out = [LEGEND, '<div class="nvc-scroll"><table class="nvc"><thead><tr><th style="width:96px">วัน / เวลา</th>']
     for p in cols:
         cls = "prehead" if p["kind"] == "pre" else ("brkhead" if p["kind"] == "break" else "")
-        label = "ก่อนเรียน" if p["kind"] == "pre" else ("พัก" if p["kind"] == "break" else f"คาบ {p['no']}")
+        label = "ก่อนเรียน" if p["kind"] == "pre" else (f"คาบ {p['no']} (พัก)" if p["kind"] == "break" else f"คาบ {p['no']}")
         out.append(f'<th class="{cls}">{html.escape(label)}<span class="t">{p["start"].replace(":", ".")}–{p["end"].replace(":", ".")}</span></th>')
     out.append("</tr></thead><tbody>")
     for d, lanes in rows:
@@ -226,7 +266,7 @@ def grid_html(vd: ViewData, cell_fields: list[str] | None = None) -> str:
                 out.append(f'<td class="day" rowspan="{len(lanes)}">{DAY_NAMES[d]}</td>')
             for sg in segs:
                 if sg.kind == "break":
-                    out.append('<td class="brk">พัก</td>')
+                    out.append(f'<td class="brk">พักกลางวัน (คาบ {cols[sg.col]["no"]})</td>')
                 elif sg.kind == "pre":
                     out.append('<td class="pre"></td>')
                 elif sg.kind == "empty":
@@ -253,21 +293,27 @@ def estimated_height(vd: ViewData) -> int:
     return one(vd) + (90 if vd.kind in ("group", "student", "teacher", "room") else 0)
 
 
+KIND_PILL = {"group": "ตารางเรียนมาตรฐาน", "student": "ตารางเรียนรายบุคคล", "teacher": "ตารางสอนรายบุคคล", "room": "ตารางใช้ห้องเรียน",
+             "course": "ตารางรายวิชา", "department": "ตารางเรียนตามแผนกวิชา", "college": "ตารางสอนรวม", "activity": "ตารางกิจกรรม",
+             "meeting": "ตารางประชุม", "homeroom": "ตารางโฮมรูม"}
+
+
 def doc_header_html(vd: ViewData) -> str:
-    meta = "".join(f"<span><b>{html.escape(k)}:</b> {html.escape(str(v))}</span>" for k, v in vd.header)
-    return (f'<div class="nvc-doc-head"><h2>{html.escape(config.COLLEGE_NAME)}</h2>'
-            f'<div class="sub">{html.escape(vd.title)} — {html.escape(vd.term_label)} ({html.escape(vd.timetable_label)})</div></div>'
-            f'<div class="nvc-meta">{meta}</div>')
+    info = "".join(f"<div><b>{html.escape(k)}:</b> {html.escape(str(v))}</div>" for k, v in vd.header)
+    return (f'<div class="nvc-doc"><div><span class="pill">{html.escape(KIND_PILL.get(vd.kind, "ตาราง"))}</span>'
+            f'<h2>{html.escape(config.COLLEGE_NAME)}</h2>'
+            f'<div class="sub">{html.escape(vd.title)} ประจำ{html.escape(vd.term_label)} · {html.escape(vd.timetable_label)}</div></div>'
+            f'<div class="info">{info}</div></div>')
 
 
-def view_html(vd: ViewData, with_header: bool = True) -> str:
+def view_html(vd: ViewData, with_header: bool = True, toolbar: str = "") -> str:
     if vd.sub_views:
         parts = []
         for sv in vd.sub_views:
             parts.append(f'<div class="nvc-page">{doc_header_html(sv)}{grid_html(sv, vd.fields if vd.kind != "college" else ["code", "name", "room", "teacher"])}</div>')
-        return CSS + '<div class="nvc-wrap">' + "".join(parts) + "</div>"
+        return CSS + toolbar + '<div class="nvc-wrap">' + "".join(parts) + "</div>"
     head = doc_header_html(vd) if with_header else ""
-    return CSS + f'<div class="nvc-wrap"><div class="nvc-page">{head}{grid_html(vd)}</div></div>'
+    return CSS + f'<div class="nvc-wrap">{head}</div>{toolbar}<div class="nvc-wrap"><div class="nvc-page">{grid_html(vd)}</div></div>'
 
 
 def printable_html(vd: ViewData, signature: bool = True) -> str:
@@ -276,13 +322,12 @@ def printable_html(vd: ViewData, signature: bool = True) -> str:
     if signature and vd.kind in ("group", "student", "teacher", "room"):
         sign = ('<div class="nvc-sign"><div>ลงชื่อ ....................................<br>ครูที่ปรึกษา/ผู้สอน</div>'
                 '<div>ลงชื่อ ....................................<br>รองผู้อำนวยการฝ่ายวิชาการ</div></div>')
-    btn = ('<div class="noprint" style="display:flex;justify-content:flex-end;gap:8px;margin:2px 0 6px">'
-           '<button onclick="window.print()" style="background:#0b3d91;color:#fff;border:0;border-radius:8px;padding:7px 16px;'
-           'font-size:14px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px">' + _svg("print", 16) + 'พิมพ์ตารางนี้</button></div>')
-    body = view_html(vd)
+    btn = ('<div class="nvc-wrap noprint"><div class="nvc-bar2"><span class="lbl">' + _svg("event", 18) + 'รายละเอียดตารางประจำสัปดาห์</span>'
+           '<button class="nvc-print" onclick="window.print()">' + _svg("print", 18, "#ffffff") + 'พิมพ์ตาราง / บันทึกเป็น PDF</button></div></div>')
+    body = view_html(vd, toolbar=btn)
     if sign and not vd.sub_views:
         body = body + f'<div class="nvc-wrap">{sign}</div>'
-    return f'<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet"></head><body style="margin:0;padding:4px 6px;background:#fff">{btn}{body}</body></html>'
+    return f'<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet"></head><body style="margin:0;padding:6px 8px;background:#fff">{body}</body></html>'
 
 
 def day_list_html(vd: ViewData) -> str:

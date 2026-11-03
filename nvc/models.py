@@ -342,6 +342,22 @@ class TimetableChange(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
 
 
+class TimetableDeletion(Base):
+    """ประวัติการลบตาราง: ตารางที่ถูกลบจะไม่ถูกลบจริง แต่ย้ายมาเก็บที่นี่ เรียกดูและกู้คืนได้"""
+
+    __tablename__ = "timetable_deletions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    timetable_id: Mapped[int] = mapped_column(ForeignKey("timetables.id"))
+    term_id: Mapped[int] = mapped_column(ForeignKey("terms.id"))
+    prev_status: Mapped[str] = mapped_column(String(30))
+    reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    deleted_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    deleted_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    restored_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    restored_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    restored_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
+
+
 class ChangeRequest(Base):
     """คำขอเปลี่ยนแปลงตารางจากครู (รอฝ่ายวิชาการพิจารณา)"""
 

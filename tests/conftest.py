@@ -29,6 +29,16 @@ def _ensure_sample():
 PG_URL = os.environ.get("NVC_TEST_DATABASE_URL")  # ตั้งค่าเพื่อรันชุดทดสอบกับ PostgreSQL จริง
 
 
+def enable_all_special(s, tid):
+    """เปิดเงื่อนไขพิเศษข้อ 9–13 ทั้งหมด (ชุดทดสอบตรวจพฤติกรรมเมื่อเลือกใช้)"""
+    S.put(s, "room_type_rule", True, tid)
+    S.put(s, "general_joint", True, tid)
+    for k in ("meeting", "homeroom", "activity"):
+        v = S.get(s, k, tid)
+        v["enabled"] = True
+        S.put(s, k, v, tid)
+
+
 def _reset(url: str):
     from nvc.models import Base
 
@@ -47,6 +57,7 @@ def fresh_db(tmp_path):
         s.flush()
         S.put(s, "hour_to_period_confirmed", True, t.id)
         S.put(s, "solver_time_limit", 15, t.id)
+        enable_all_special(s, t.id)
         tid = t.id
     return tid
 
@@ -96,6 +107,7 @@ def scheduled(tmp_path_factory):
         s.add(t)
         s.flush()
         S.put(s, "hour_to_period_confirmed", True, t.id)
+        enable_all_special(s, t.id)
         tid = t.id
     import_all(tid)
     with db.session_scope() as s:

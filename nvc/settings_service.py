@@ -35,15 +35,18 @@ DEFAULTS: dict = {
     "days": [0, 1, 2, 3, 4],
     "max_periods_per_day_group": 10,
     "allow_special_periods": False,  # เปิดใช้คาบประเภท special (เช่น คาบที่ 11) — ต้องเป็นผู้ดูแลระบบ
-    "meeting": {"enabled": True, "day": 1, "periods": [8], "room_id": None, "title": "ประชุมหัวหน้าแผนก/หัวหน้างาน"},
-    "activity": {"enabled": True, "day": 2, "periods": [8, 9], "lock_all_groups": True},
+    "meeting": {"enabled": False, "day": 1, "periods": [8], "room_id": None, "title": "ประชุมหัวหน้าแผนก/หัวหน้างาน"},
+    "activity": {"enabled": False, "day": 2, "periods": [8, 9], "lock_all_groups": True},
     "homeroom": {
-        "enabled": True,
+        "enabled": False,
         "periods_per_week": 1,
         "allowed_slots": None,  # None = ทุกคาบเรียนปกติ, หรือ [[day, period], ...]
         "needs_room": False,
         "count_as_teaching": False,
     },
+    # เงื่อนไขพิเศษแบบเลือกใช้ (ค่าเริ่มต้น = ไม่ใช้) — เปิดได้ที่ ตั้งค่า > กฎการจัดตาราง
+    "room_type_rule": False,  # แยกห้องทฤษฎี/ปฏิบัติ
+    "general_joint": False,  # เสนอการเรียนร่วมวิชาสามัญ
     "general_prefixes": ["20000", "30000"],
     "general_joint_max_groups": 2,
     "hour_to_period_rate": 1.0,

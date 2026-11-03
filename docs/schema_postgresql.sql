@@ -274,6 +274,22 @@ CREATE TABLE timetable_changes (
 	FOREIGN KEY(timetable_id) REFERENCES timetables (id)
 );
 
+CREATE TABLE timetable_deletions (
+	id SERIAL NOT NULL, 
+	timetable_id INTEGER NOT NULL, 
+	term_id INTEGER NOT NULL, 
+	prev_status VARCHAR(30) NOT NULL, 
+	reason VARCHAR(500), 
+	deleted_by VARCHAR(100), 
+	deleted_at TIMESTAMP WITHOUT TIME ZONE NOT NULL, 
+	restored_by VARCHAR(100), 
+	restored_at TIMESTAMP WITHOUT TIME ZONE, 
+	restored_status VARCHAR(30), 
+	PRIMARY KEY (id), 
+	FOREIGN KEY(timetable_id) REFERENCES timetables (id), 
+	FOREIGN KEY(term_id) REFERENCES terms (id)
+);
+
 CREATE TABLE users (
 	id SERIAL NOT NULL, 
 	username VARCHAR(100) NOT NULL, 

@@ -18,6 +18,7 @@ from .models import (
     Teacher,
     Timetable,
     TimetableChange,
+    TimetableDeletion,
 )
 from .permissions import ADMIN, DEPT_ADMIN, TEACHER, Ctx, PermissionDenied, check_dept, require
 
@@ -33,8 +34,9 @@ STATUS_LABEL = {
     "approved": "อนุมัติแล้ว",
     "published": "เผยแพร่แล้ว",
     "superseded": "ถูกแทนที่ด้วยตารางฉบับใหม่",
+    "deleted": "ถูกลบ (อยู่ในประวัติการลบตาราง)",
 }
-LOCKED = {"pending_review", "approved", "published", "superseded", "running"}
+LOCKED = {"pending_review", "approved", "published", "superseded", "running", "deleted"}
 
 FRIENDLY = {
     3: "ไม่สามารถจัดวิชานี้ได้ เนื่องจากครูผู้สอนมีการสอนอีกรายการในช่วงเวลาเดียวกัน",
@@ -134,7 +136,7 @@ def latest_published(s: Session, term_id: int) -> Timetable | None:
 
 
 def list_timetables(s: Session, ctx: Ctx, term_id: int) -> list[Timetable]:
-    q = select(Timetable).where(Timetable.term_id == term_id).order_by(Timetable.version.desc())
+    q = select(Timetable).where(Timetable.term_id == term_id, Timetable.status != "deleted").order_by(Timetable.version.desc())
     rows = list(s.scalars(q).all())
     if ctx.role in (TEACHER, "student"):
         return [t for t in rows if t.status in ("published", "superseded")]
@@ -144,6 +146,8 @@ def list_timetables(s: Session, ctx: Ctx, term_id: int) -> list[Timetable]:
 
 
 def can_view_timetable(ctx: Ctx, tt: Timetable) -> bool:
+    if tt.status == "deleted":
+        return ctx.role == ADMIN
     if ctx.role == ADMIN:
         return True
     if ctx.role == DEPT_ADMIN:
@@ -492,6 +496,8 @@ def validate(s: Session, ctx: Ctx, tt_id: int) -> V.ValidationResult:
 def submit_for_review(s: Session, ctx: Ctx, tt_id: int) -> None:
     require(ctx, ADMIN, DEPT_ADMIN)
     tt = s.get(Timetable, tt_id)
+    if tt.status in ("deleted", "running"):
+        raise ValueError(f"ตารางฉบับนี้อยู่ในสถานะ “{STATUS_LABEL[tt.status]}” ส่งตรวจสอบไม่ได้")
     vr = validate(s, ctx, tt_id)
     if vr.status == "fail":
         raise ValueError("ตารางยังไม่ผ่านการตรวจสอบข้อจำกัดบังคับ จึงส่งตรวจสอบไม่ได้")
@@ -568,6 +574,55 @@ def delete_draft(s: Session, ctx: Ctx, tt_id: int) -> None:
     audit.log(s, ctx.username, "delete_timetable", "timetable", {"id": tt_id})
 
 
+def delete_timetable(s: Session, ctx: Ctx, tt_id: int, reason: str = "") -> TimetableDeletion:
+    """ลบตาราง (ผู้ดูแลระบบ): ย้ายไปเก็บในประวัติการลบตาราง ไม่ลบข้อมูลจริง จึงเรียกดูและกู้คืนได้"""
+    require(ctx, ADMIN)
+    tt = s.get(Timetable, tt_id)
+    if tt is None or tt.status == "deleted":
+        raise ValueError("ไม่พบตาราง หรือตารางนี้ถูกลบไปแล้ว")
+    if tt.status == "running":
+        raise ValueError("ตารางนี้กำลังจัดอยู่ ลบไม่ได้ในขณะนี้")
+    rec = TimetableDeletion(timetable_id=tt.id, term_id=tt.term_id, prev_status=tt.status, reason=(reason or "").strip() or None,
+                            deleted_by=ctx.username)
+    s.add(rec)
+    tt.status = "deleted"
+    tt.lock_version = (tt.lock_version or 0) + 1
+    s.flush()
+    audit.log(s, ctx.username, "delete_timetable", "timetable", {"id": tt.id, "version": tt.version, "prev_status": rec.prev_status, "reason": rec.reason})
+    return rec
+
+
+def list_deleted(s: Session, ctx: Ctx, term_id: int | None = None) -> list[tuple[TimetableDeletion, Timetable]]:
+    """ประวัติการลบตาราง (ล่าสุดก่อน) รวมรายการที่กู้คืนแล้ว"""
+    require(ctx, ADMIN)
+    q = select(TimetableDeletion, Timetable).join(Timetable, Timetable.id == TimetableDeletion.timetable_id)
+    if term_id is not None:
+        q = q.where(TimetableDeletion.term_id == term_id)
+    return [(d, t) for d, t in s.execute(q.order_by(TimetableDeletion.deleted_at.desc(), TimetableDeletion.id.desc())).all()]
+
+
+def restore_timetable(s: Session, ctx: Ctx, deletion_id: int) -> Timetable:
+    """กู้คืนตารางจากประวัติการลบ กลับสู่สถานะเดิม
+    (ถ้าเดิมเผยแพร่อยู่ แต่ตอนนี้มีฉบับอื่นเผยแพร่แทนแล้ว จะกู้คืนเป็น “ถูกแทนที่” เพื่อไม่ให้มีตารางมีผลใช้จริงสองฉบับ)"""
+    require(ctx, ADMIN)
+    rec = s.get(TimetableDeletion, deletion_id)
+    if rec is None or rec.restored_at is not None:
+        raise ValueError("ไม่พบรายการ หรือกู้คืนไปแล้ว")
+    tt = s.get(Timetable, rec.timetable_id)
+    if tt is None or tt.status != "deleted":
+        raise ValueError("ตารางนี้ไม่ได้อยู่ในสถานะถูกลบ")
+    status = rec.prev_status
+    if status == "published" and latest_published(s, tt.term_id) is not None:
+        status = "superseded"
+    if status == "running":
+        status = "draft"
+    tt.status = status
+    tt.lock_version = (tt.lock_version or 0) + 1
+    rec.restored_by, rec.restored_at, rec.restored_status = ctx.username, datetime.now(), status
+    audit.log(s, ctx.username, "restore_timetable", "timetable", {"id": tt.id, "version": tt.version, "status": status})
+    return tt
+
+
 # ------------------------------------------------------------------ change requests (ครู)
 def create_request(s: Session, ctx: Ctx, tt_id: int, entry_id: int, new_day: int, new_start: int, new_room_id: int | None, reason: str) -> tuple[ChangeRequest, list[dict]]:
     require(ctx, TEACHER, DEPT_ADMIN, ADMIN)
@@ -601,6 +656,8 @@ def review_request(s: Session, ctx: Ctx, req_id: int, approve_it: bool) -> Timet
         audit.log(s, ctx.username, "reject_request", "timetable", {"id": cr.id})
         return None
     src = s.get(Timetable, cr.timetable_id)
+    if src is None or src.status == "deleted":
+        raise ValueError("ตารางของคำขอนี้ถูกลบแล้ว — กู้คืนตารางก่อน หรือปฏิเสธคำขอ")
     e = s.get(Entry, cr.entry_id)
     if e is None:
         raise ValueError("รายการต้นทางไม่มีอยู่แล้ว")

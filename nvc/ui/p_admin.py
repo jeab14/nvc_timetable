@@ -247,41 +247,56 @@ def _rules(ctx, tid):
     c = st.columns(2)
     rate = c[0].number_input("1 ชั่วโมง/สัปดาห์ = กี่คาบ", 0.5, 4.0, float(st_["hour_to_period_rate"]), 0.5)
     conf = c[1].checkbox("ยืนยันกติกาการแปลงหน่วยนี้", bool(st_["hour_to_period_confirmed"]))
-    st.markdown("##### การประชุมหัวหน้าแผนก/หัวหน้างาน")
-    mt = st_["meeting"]
-    c = st.columns(4)
-    m_en = c[0].checkbox("จัดเวลาประชุม", mt.get("enabled", True))
-    m_day = c[1].selectbox("วัน", list(days), index=list(days).index(int(mt["day"])), format_func=days.get, key="m_day")
-    m_p = c[2].multiselect("คาบ", ts.teaching_periods, default=[p for p in mt["periods"] if p in ts.teaching_periods], key="m_p")
-    m_room = c[3].selectbox("ห้องประชุม (ถ้ามี)", [None] + list(rooms), index=([None] + list(rooms)).index(mt.get("room_id")) if mt.get("room_id") in rooms else 0,
-                            format_func=lambda i: "-" if i is None else rooms[i], key="m_room")
-    st.caption(f"ผู้เข้าร่วมประชุม ({len(teachers)} คน) กำหนดรายบุคคลที่ จัดการข้อมูล > ครูผู้สอน > “เข้าประชุมหัวหน้า”: {', '.join(teachers.values()) or '-'}")
-    st.markdown("##### รายวิชากิจกรรม")
-    act = st_["activity"]
-    c = st.columns(3)
-    a_en = c[0].checkbox("จัดช่วงกิจกรรม", act.get("enabled", True))
-    a_day = c[1].selectbox("วันกิจกรรม", list(days), index=list(days).index(int(act["day"])), format_func=days.get, key="a_day")
-    a_p = c[2].multiselect("คาบกิจกรรม (ต่อเนื่อง)", ts.teaching_periods, default=[p for p in act["periods"] if p in ts.teaching_periods], key="a_p")
-    a_lock = st.checkbox("ล็อกช่วงกิจกรรมสำหรับทุกกลุ่มเรียน (ห้ามจัดวิชาปกติในช่วงนี้)", act.get("lock_all_groups", True))
-    st.markdown("##### โฮมรูม")
-    hr = st_["homeroom"]
-    c = st.columns(4)
-    h_en = c[0].checkbox("จัดโฮมรูม", hr.get("enabled", True))
-    h_n = c[1].number_input("คาบต่อสัปดาห์ (อย่างน้อย)", 1, 5, int(hr.get("periods_per_week", 1)))
-    h_room = c[2].checkbox("ต้องใช้ห้องเรียน", bool(hr.get("needs_room")))
-    h_count = c[3].checkbox("นับเป็นชั่วโมงสอน", bool(hr.get("count_as_teaching")))
-    allowed = hr.get("allowed_slots")
-    h_fix = st.checkbox("กำหนดช่วงเวลาที่อนุญาตให้จัดโฮมรูม", allowed is not None)
-    slots = None
-    if h_fix:
-        all_slots = [(d, p) for d in ts.days for p in ts.teaching_periods]
-        cur = [tuple(x) for x in (allowed or [])]
-        pick = st.multiselect("ช่วงเวลาที่อนุญาต", all_slots, default=[x for x in cur if x in all_slots], format_func=lambda x: f"{S.DAY_NAMES[x[0]]} คาบ {x[1]}")
-        slots = [list(x) for x in pick]
-    st.markdown("##### วิชาสามัญและการเรียนร่วม")
-    c = st.columns(2)
-    pref = c[0].text_input("รหัสวิชาขึ้นต้น (คั่นด้วย ,)", ", ".join(st_["general_prefixes"]))
-    maxg = c[1].number_input("จำนวนกลุ่มสูงสุดที่เสนอให้เรียนร่วม", 2, 6, int(st_["general_joint_max_groups"]))
+    mt, act, hr = st_["meeting"], st_["activity"], st_["homeroom"]
+    with st.container(border=True):
+        st.markdown("##### :material/tune: เงื่อนไขพิเศษ (กดเลือกเฉพาะข้อที่ต้องการใช้)")
+        st.caption("ข้อที่ไม่เลือก ระบบจะไม่นำไปใช้ทั้งตอนจัดตารางและตอนตรวจสอบตาราง — เปลี่ยนได้ทุกเมื่อ แล้วกดบันทึกและจัดตารางใหม่")
+        from .p_schedule import SPECIAL_LABELS
+
+        room_rule = st.checkbox(SPECIAL_LABELS[9], bool(st_["room_type_rule"]), key="sc9")
+        m_en = st.checkbox(SPECIAL_LABELS[10], bool(mt.get("enabled")), key="sc10")
+        h_en = st.checkbox(SPECIAL_LABELS[11], bool(hr.get("enabled")), key="sc11")
+        a_en = st.checkbox(SPECIAL_LABELS[12], bool(act.get("enabled")), key="sc12")
+        gj = st.checkbox(SPECIAL_LABELS[13], bool(st_["general_joint"]), key="sc13")
+        st.caption("รายละเอียดของแต่ละข้อ (วัน คาบ ห้องประชุม ฯลฯ) จะแสดงด้านล่างเมื่อเลือกใช้ข้อนั้น")
+    m_day, m_p, m_room = int(mt["day"]), [p for p in mt["periods"] if p in ts.teaching_periods], mt.get("room_id")
+    if m_en:
+        st.markdown("##### การประชุมหัวหน้าแผนก/หัวหน้างาน")
+        c = st.columns(3)
+        m_day = c[0].selectbox("วัน", list(days), index=list(days).index(int(mt["day"])), format_func=days.get, key="m_day")
+        m_p = c[1].multiselect("คาบ", ts.teaching_periods, default=m_p, key="m_p")
+        m_room = c[2].selectbox("ห้องประชุม (ถ้ามี)", [None] + list(rooms), index=([None] + list(rooms)).index(mt.get("room_id")) if mt.get("room_id") in rooms else 0,
+                                format_func=lambda i: "-" if i is None else rooms[i], key="m_room")
+        st.caption(f"ผู้เข้าร่วมประชุม ({len(teachers)} คน) กำหนดรายบุคคลที่ จัดการข้อมูล > ครูผู้สอน > “เข้าประชุมหัวหน้า”: {', '.join(teachers.values()) or '-'}")
+    a_day, a_p, a_lock = int(act["day"]), [p for p in act["periods"] if p in ts.teaching_periods], act.get("lock_all_groups", True)
+    if a_en:
+        st.markdown("##### รายวิชากิจกรรม")
+        c = st.columns(2)
+        a_day = c[0].selectbox("วันกิจกรรม", list(days), index=list(days).index(int(act["day"])), format_func=days.get, key="a_day")
+        a_p = c[1].multiselect("คาบกิจกรรม (ต่อเนื่อง)", ts.teaching_periods, default=a_p, key="a_p")
+        a_lock = st.checkbox("ล็อกช่วงกิจกรรมสำหรับทุกกลุ่มเรียน (ห้ามจัดวิชาปกติในช่วงนี้)", a_lock)
+    h_n, h_room, h_count, slots = int(hr.get("periods_per_week", 1)), bool(hr.get("needs_room")), bool(hr.get("count_as_teaching")), hr.get("allowed_slots")
+    if h_en:
+        st.markdown("##### โฮมรูม")
+        c = st.columns(3)
+        h_n = c[0].number_input("คาบต่อสัปดาห์ (อย่างน้อย)", 1, 5, h_n)
+        h_room = c[1].checkbox("ต้องใช้ห้องเรียน", h_room)
+        h_count = c[2].checkbox("นับเป็นชั่วโมงสอน", h_count)
+        allowed = hr.get("allowed_slots")
+        h_fix = st.checkbox("กำหนดช่วงเวลาที่อนุญาตให้จัดโฮมรูม", allowed is not None)
+        slots = None
+        if h_fix:
+            all_slots = [(d, p) for d in ts.days for p in ts.teaching_periods]
+            cur = [tuple(x) for x in (allowed or [])]
+            pick = st.multiselect("ช่วงเวลาที่อนุญาต", all_slots, default=[x for x in cur if x in all_slots], format_func=lambda x: f"{S.DAY_NAMES[x[0]]} คาบ {x[1]}")
+            slots = [list(x) for x in pick]
+    pref, maxg = ", ".join(st_["general_prefixes"]), int(st_["general_joint_max_groups"])
+    if gj:
+        st.markdown("##### วิชาสามัญเรียนร่วม")
+        c = st.columns(2)
+        pref = c[0].text_input("รหัสวิชาขึ้นต้น (คั่นด้วย ,)", pref)
+        maxg = c[1].number_input("จำนวนกลุ่มที่เรียนร่วมกัน", 2, 6, maxg)
+        st.caption("ระบบจับคู่กลุ่มที่เรียนวิชาเดียวกันกับครูคนเดียวกันให้อัตโนมัติ โดยข้ามคู่ที่ไม่มีห้องจุผู้เรียนรวมได้")
     st.markdown("##### ตัวจัดตาราง")
     c = st.columns(3)
     blk = c[0].number_input("คาบต่อเนื่องสูงสุดเมื่อรายวิชาไม่ระบุ", 1, 6, int(st_["default_block_max"]))
@@ -311,6 +326,8 @@ def _rules(ctx, tid):
             S.put(s, "activity", {"enabled": a_en, "day": int(a_day), "periods": sorted(a_p), "lock_all_groups": a_lock}, tid)
             S.put(s, "homeroom", {"enabled": h_en, "periods_per_week": int(h_n), "allowed_slots": slots, "needs_room": h_room, "count_as_teaching": h_count}, tid)
             S.put(s, "general_prefixes", [x.strip() for x in pref.split(",") if x.strip()], tid)
+            S.put(s, "room_type_rule", bool(room_rule), tid)
+            S.put(s, "general_joint", bool(gj), tid)
             S.put(s, "general_joint_max_groups", int(maxg), tid)
             S.put(s, "default_block_max", int(blk), tid)
             S.put(s, "solver_time_limit", int(tlim), tid)

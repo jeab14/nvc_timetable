@@ -218,13 +218,15 @@ def validate_entries(s: Session, term_id: int, entries: list, scope_groups: set[
                 enrolled_any = any(x.course_id == e["course_id"] and (x.section_group_id == g) for xs in enrolls.values() for x in xs)
                 if not enrolled_any:
                     add("error", 8, f"{_lbl(e)}: กลุ่ม {groups[g].code if g in groups else g} ไม่ได้ลงทะเบียนรายวิชานี้", [e["id"]])
+    act_on = bool(st["activity"].get("enabled"))
+    room_rule = bool(st.get("room_type_rule"))
     group_req = Counter()
     group_got = Counter()
     for (g, c) in regs:
         if scope_groups is not None and g not in scope_groups:
             continue
         co = courses.get(c)
-        if co is None or not co.active or co.course_type == "activity":
+        if co is None or not co.active or (co.course_type == "activity" and act_on):
             continue
         req = {}
         if co.theory_hours is None and co.practice_hours is None:
@@ -272,10 +274,10 @@ def validate_entries(s: Session, term_id: int, entries: list, scope_groups: set[
                 co = courses[e["course_id"]]
                 part = e.get("part") or "all"
                 is_theory = part == "theory" or (part == "all" and co.course_type == "theory")
-                if is_theory and kind != "theory":
+                if room_rule and is_theory and kind != "theory":
                     add("error", 6, f"{_lbl(e)} เป็นส่วนทฤษฎี แต่จัดในห้อง {r.label} ซึ่งไม่ใช่ห้องทฤษฎี", [e["id"]])
                 if not is_theory:
-                    if kind == "theory":
+                    if room_rule and kind == "theory":
                         add("error", 6, f"{_lbl(e)} เป็นส่วนปฏิบัติ แต่จัดในห้องทฤษฎี {r.label}", [e["id"]])
                     req_types = [x for x in (co.practice_room_types or "").split(",") if x]
                     if req_types and rtcode not in req_types:

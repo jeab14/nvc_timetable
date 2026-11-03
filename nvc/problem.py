@@ -128,6 +128,89 @@ def split_blocks(n: int, consecutive: int | None, default_max: int) -> list[int]
     return [base + 1] * extra + [base] * (k - extra)
 
 
+AUTO_JOINT_NOTE = "เงื่อนไขข้อ 13: วิชาสามัญเรียนร่วม (สร้างอัตโนมัติ)"
+
+
+def sync_general_joints(s: Session, term_id: int) -> int:
+    """เงื่อนไขพิเศษข้อ 13 (เลือกใช้): จับคู่วิชาสามัญเรียนร่วม 2 กลุ่มให้อัตโนมัติ
+
+    - จับคู่เฉพาะกลุ่มที่ลงทะเบียนวิชาเดียวกัน ครูคนเดียวกัน และข้อมูลการมอบหมายเหมือนกัน
+    - ข้ามคู่ที่ไม่มีห้องจุผู้เรียนรวมได้ และไม่แตะการเรียนร่วมที่ผู้ดูแลกำหนดเอง
+    - ปิดเงื่อนไข = ลบเฉพาะการเรียนร่วมที่ระบบสร้างอัตโนมัติ
+    คืนจำนวนคู่ที่ใช้อยู่
+    """
+    on = bool(S.get(s, "general_joint", term_id))
+    existing = s.scalars(select(JointClass).where(JointClass.term_id == term_id)).all()
+    auto = [j for j in existing if j.note == AUTO_JOINT_NOTE]
+    manual_pairs = {(j.course_id, g) for j in existing if j.note != AUTO_JOINT_NOTE for g in j.group_ids}
+    desired: set[tuple[int, tuple]] = set()
+    if on:
+        prefixes = S.get(s, "general_prefixes", term_id) or []
+        maxg = int(S.get(s, "general_joint_max_groups", term_id) or 2)
+        room_rule = bool(S.get(s, "room_type_rule", term_id))
+        rts = {rt.id: rt for rt in s.scalars(select(RoomType)).all()}
+        room_list = [(rts[r.room_type_id].kind if r.room_type_id in rts else None, rts[r.room_type_id].code if r.room_type_id in rts else None, r.capacity or 0)
+                     for r in s.scalars(select(Room).where(Room.active.is_(True))).all()]
+        rate = float(S.get(s, "hour_to_period_rate", term_id) or 1)
+
+        def max_cap(c: Course) -> int:
+            """ความจุสูงสุดของห้องที่รายวิชานี้ใช้ได้ (ทุกส่วนต้องมีห้องจุได้) — ใช้กติกาเดียวกับการสร้างรายการสอน"""
+            types = [x for x in (c.practice_room_types or "").split(",") if x]
+            best = None
+            for part in course_periods(c, rate) or {"all": 0}:
+                if not room_rule:
+                    ok = [cap for k, code, cap in room_list if (code in types if types and part != "theory" else k != "other")]
+                elif part == "theory" or (part == "all" and c.course_type == "theory"):
+                    ok = [cap for k, code, cap in room_list if k == "theory"]
+                else:
+                    ok = [cap for k, code, cap in room_list if (code in types if types else k == "practice")]
+                m = max(ok) if ok else 0
+                best = m if best is None else min(best, m)
+            return best or 0
+        members: dict[int, int] = {}
+        for m in s.scalars(select(StudentMembership).where(StudentMembership.term_id == term_id)).all():
+            members[m.group_id] = members.get(m.group_id, 0) + 1
+        gsize = {g.id: (g.size if g.size is not None else members.get(g.id, 0))
+                 for g in s.scalars(select(ClassGroup).where(ClassGroup.term_id == term_id)).all()}
+        gcode = {g.id: g.code for g in s.scalars(select(ClassGroup).where(ClassGroup.term_id == term_id)).all()}
+        regs = {(x.group_id, x.course_id) for x in s.scalars(select(GroupCourse).where(GroupCourse.term_id == term_id)).all()}
+        courses = {c.id: c for c in s.scalars(select(Course).where(Course.term_id == term_id, Course.active.is_(True))).all()}
+        sig: dict[tuple[int, int], list] = {}
+        for a in s.scalars(select(Assignment).where(Assignment.term_id == term_id)).all():
+            sig.setdefault((a.course_id, a.group_id), []).append((a.teacher_id, a.part, a.periods))
+        bucket: dict[tuple, list[int]] = {}
+        for (cid, gid), lst in sig.items():
+            c = courses.get(cid)
+            if c is None or c.course_type == "activity" or (gid, cid) not in regs or (cid, gid) in manual_pairs:
+                continue
+            if not S.is_general_course(c.code, prefixes, c.is_general):
+                continue
+            bucket.setdefault((cid, tuple(sorted(lst))), []).append(gid)
+        for (cid, _sig), gids in bucket.items():
+            gids = sorted(gids, key=lambda g: gcode.get(g, ""))
+            i = 0
+            while i + 1 < len(gids):
+                chunk = gids[i:i + maxg]
+                cap = max_cap(courses[cid])
+                while len(chunk) >= 2 and sum(gsize.get(g, 0) for g in chunk) > cap:
+                    chunk = chunk[:-1]
+                if len(chunk) >= 2:
+                    desired.add((cid, tuple(chunk)))
+                    i += len(chunk)
+                else:
+                    i += 1
+    have = {(j.course_id, tuple(sorted(j.group_ids))): j for j in auto}
+    for k, j in have.items():
+        if k not in desired:
+            s.delete(j)
+    for cid, gids in desired:
+        if (cid, tuple(sorted(gids))) not in have:
+            teacher = sig[(cid, gids[0])][0][0] if sig.get((cid, gids[0])) else None
+            s.add(JointClass(term_id=term_id, course_id=cid, teacher_id=teacher, group_ids=sorted(gids), note=AUTO_JOINT_NOTE))
+    s.flush()
+    return len(desired)
+
+
 def build(s: Session, term_id: int, department_id: int | None = None) -> Problem:
     ts = S.time_structure(s, term_id)
     st = {k: S.get(s, k, term_id) for k in S.DEFAULTS}
@@ -190,6 +273,7 @@ def build(s: Session, term_id: int, department_id: int | None = None) -> Problem
     for a in s.scalars(select(Assignment).where(Assignment.term_id == term_id)).all():
         assigns[(a.course_id, a.group_id)].append(a)
 
+    sync_general_joints(s, term_id)
     joints = s.scalars(select(JointClass).where(JointClass.term_id == term_id)).all()
 
     # ---------------------------------------------------------- sections
@@ -254,6 +338,8 @@ def build(s: Session, term_id: int, department_id: int | None = None) -> Problem
     default_max = int(st["default_block_max"] or 4)
     maxblk = ts.max_block()
     activity_sections = []
+    room_rule = bool(st.get("room_type_rule"))
+    act_on = bool((st.get("activity") or {}).get("enabled"))
     for key, info in sections.items():
         cid, gids = key
         c = courses[cid]
@@ -261,7 +347,7 @@ def build(s: Session, term_id: int, department_id: int | None = None) -> Problem
             continue
         cname = f"{c['code']} {c['name']}"
         gcodes = ",".join(groups[g]["code"] for g in gids)
-        if c["type"] == "activity":
+        if c["type"] == "activity" and act_on:
             activity_sections.append((key, info))
             continue
         if not c["confirmed"] or c["type"] is None:
@@ -324,11 +410,19 @@ def build(s: Session, term_id: int, department_id: int | None = None) -> Problem
         if bad:
             continue
         for p, loads in part_loads.items():
-            if p == "theory" or (p == "all" and c["type"] == "theory"):
+            types = c["room_types"]
+            if not room_rule:
+                # ไม่ได้เลือกใช้เงื่อนไข “แยกห้องทฤษฎี/ปฏิบัติ”: ใช้ห้องใดก็ได้ (ยกเว้นห้องประชุม)
+                # ถ้ารายวิชาระบุประเภทห้องที่ต้องใช้ในส่วนปฏิบัติไว้ ยังคงใช้ตามข้อมูลรายวิชา
+                if types and p != "theory":
+                    cand = [r for r, ri in rooms.items() if ri["type"] in types]
+                else:
+                    cand = [r for r, ri in rooms.items() if ri["kind"] != "other"]
+                room_need = "any"
+            elif p == "theory" or (p == "all" and c["type"] == "theory"):
                 cand = [r for r, ri in rooms.items() if ri["kind"] == "theory"]
                 room_need = "theory"
             else:
-                types = c["room_types"]
                 if types:
                     cand = [r for r, ri in rooms.items() if ri["type"] in types]
                 else:
@@ -336,7 +430,7 @@ def build(s: Session, term_id: int, department_id: int | None = None) -> Problem
                 room_need = "practice"
             cap_ok = [r for r in cand if rooms[r]["capacity"] is not None and rooms[r]["capacity"] >= size]
             if not cand:
-                issues.append(Issue("error", "no_room_type", f"วิชา {cname} ส่วน{PART_LABEL[p]} ต้องใช้ห้อง{'ทฤษฎี' if room_need == 'theory' else 'ปฏิบัติ'} แต่ไม่มีห้องประเภทที่ตรงกัน", "เพิ่มห้องเรียนประเภทที่ต้องใช้ หรือแก้ไขประเภทห้องที่รายวิชาต้องการ"))
+                issues.append(Issue("error", "no_room_type", f"วิชา {cname} ส่วน{PART_LABEL[p]} ต้องใช้ห้อง{ {'theory': 'ทฤษฎี', 'practice': 'ปฏิบัติ'}.get(room_need, 'เรียน')} แต่ไม่มีห้องประเภทที่ตรงกัน", "เพิ่มห้องเรียนประเภทที่ต้องใช้ หรือแก้ไขประเภทห้องที่รายวิชาต้องการ"))
                 continue
             if not cap_ok:
                 issues.append(Issue("error", "no_room_capacity", f"วิชา {cname} กลุ่ม {gcodes} มีผู้เรียน {size} คน แต่ไม่มีห้องที่เหมาะสมซึ่งมีความจุเพียงพอ", "เพิ่มห้องที่มีความจุมากขึ้น หรือแก้ไขข้อมูลความจุ/การเรียนร่วม"))
